@@ -1,9 +1,10 @@
 package exercises
 
-import model.domain.Cat
-import model.infra.{ Breeds, Cats }
+import model.domain.{Cat, Sex}
+import model.infra.{Breeds, Cats}
 import slick.dbio.DBIO
 import slick.jdbc.H2Profile.api._
+import slick.lifted.WrappingQuery
 import util.WorkshopTest
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -21,27 +22,44 @@ class Exercise1Test extends WorkshopTest {
 
   /** find all cats that are older than 5*/
   def findOldCats: DBIO[Seq[Cat]] = {
-    ???
+    Cats.query.filter(_.age > 5).result
   }
 
   /** find all male cats that are older than 5*/
   def findOldMaleCats: DBIO[Seq[Cat]] = {
-    ???
+    Cats.query.filter(_.age > 5).filter(_.sex === Sex.Male).result
   }
 
   /** find all persian cats*/
   def findPersianCats: DBIO[Seq[Cat]] = {
-    ???
+    val query = for {
+      b <- Breeds.query.filter(_.name === "Persian")
+      c <- Cats.query.filter(_.breedId === b.id)
+    } yield c
+
+    query.result
   }
 
   /** find how many calories are needed to feed all old cats*/
   def findCaloricNeedsForOldCats: DBIO[BigDecimal] = {
-    ???
+    val query = for {
+      c <- Cats.query if c.age > 5
+      b <- Breeds.query.filter(_.id === c.breedId)
+    } yield {
+      b.caloriesPerDay
+    }
+
+    query.sum.result.map(_.getOrElse(BigDecimal(0)))
   }
 
   /** find how many calories are needed for cats grouped by their breed*/
   def findCaloricNedsForBreeds: DBIO[Seq[(String, BigDecimal)]] = {
-    ???
+    (for {
+      c <- Cats.query
+      b <- Breeds.query.filter(_.id === c.breedId)
+    } yield (b.name, b.caloriesPerDay)).groupBy(_._1).map{ s =>
+      (s._1, s._2.map(_._2).sum.getOrElse(BigDecimal(0)))
+    }.result
   }
 
   "findOldCats" should "return cats with age greater than 5" in rollbackWithTestData {

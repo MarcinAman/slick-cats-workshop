@@ -2,8 +2,9 @@ package repositories
 
 import model.domain.Breed
 import model.infra.Breeds
-import slick.dbio.DBIO
+import slick.dbio.{DBIO, Effect}
 import slick.jdbc.H2Profile.api._
+import slick.sql.FixedSqlAction
 
 import scala.concurrent.ExecutionContext
 
@@ -19,7 +20,7 @@ class BreedsRepository {
     * @param id id of Breed to be fetched
     * @return opional breed found in database */
   def findById(id: Long)(implicit ec: ExecutionContext): DBIO[Option[Breed]] = {
-    ???
+    byId(id).result.map(_.headOption)
   }
 
   /** This method should fetch Breed from the database based on given ID
@@ -27,7 +28,7 @@ class BreedsRepository {
     * @param id id of Breed to be fetched
     * @return existing breed found in database*/
   def findExistingById(id: Long)(implicit ec: ExecutionContext): DBIO[Breed] = {
-    ???
+    findById(id).map(_.getOrElse(sys.error("Id not found")))
   }
 
   /** This method should fetch Breed from the database based on name
@@ -35,7 +36,7 @@ class BreedsRepository {
     * @param name name of Breed to be fetched
     * @return breed found in database*/
   def findByName(name: String)(implicit ec: ExecutionContext): DBIO[Option[Breed]] = {
-    ???
+    byName(name).result.map(_.headOption)
   }
 
   /** This method should save breed passed as an argument
@@ -43,14 +44,14 @@ class BreedsRepository {
     * @param breed Breed to be saved
     * @return ID of saved breed*/
   def save(breed: Breed)(implicit ec: ExecutionContext): DBIO[Long] = {
-    ???
+    query returning query.map(_.id) += breed
   }
 
   /** This method should delete breed with given Id
     *
     * @param id ID of breed to be deleted*/
   def delete(id: Long)(implicit ec: ExecutionContext): DBIO[Unit] = {
-    ???
+    byId(id).delete.map(_ => ())
   }
 
   /** This method should fetch breeds with name containing given text
@@ -58,7 +59,7 @@ class BreedsRepository {
     * @param text part of breed name to be matched
     * @return breeds with matching names*/
   def search(text: String)(implicit ec: ExecutionContext): DBIO[Seq[Breed]] = {
-    ???
+    Breeds.query.filter(_.name like s"%$text%").result
   }
 
 }

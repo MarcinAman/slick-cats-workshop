@@ -3,12 +3,13 @@ package exercises
 import cats.implicits._
 import instances.DbioInstances.dbioMonad
 import model.domain.Breed
+import model.infra.Breeds
 import slick.dbio.DBIO
 import util.WorkshopTest
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
-import scala.concurrent.{ Await, Future }
+import scala.concurrent.{Await, Future}
 
 class Exercise6Test extends WorkshopTest {
   import module._
@@ -30,7 +31,7 @@ class Exercise6Test extends WorkshopTest {
 
   val breedsNames = List("Abyssinian", "Devon Rex", "Maine Coon", "Norwegian Forest Cat", "Ocicat")
 
-  def findBreeds(names: List[String]): DBIO[List[Option[Breed]]] = ???
+  def findBreeds(names: List[String]): DBIO[List[Option[Breed]]] = names.traverse(breedsRepository.findByName)
 
   "findBreeds" should "find breeds with given name" in rollbackWithTestData {
     for {
@@ -49,7 +50,7 @@ class Exercise6Test extends WorkshopTest {
 
   val optionalBreedName = Some("Norwegian Forest Cat")
 
-  def findBreed(name: Option[String]): DBIO[Option[Breed]] = ???
+  def findBreed(name: Option[String]): DBIO[Option[Breed]] = name.flatTraverse(breedsRepository.findByName)
 
   "findBreed" should "find breed for an optional name" in rollbackWithTestData {
     for {
@@ -66,7 +67,9 @@ class Exercise6Test extends WorkshopTest {
     *
     */
 
-  def findBreed(name: Either[Int, String]): DBIO[Either[Int, Breed]] = ???
+  def findBreed(name: Either[Int, String]): DBIO[Either[Int, Breed]] = {
+    name.traverse(s => breedsRepository.findByName(s)).map(_.map(_.get))
+  }
 
   "findBreed" should "find breed for name in right" in rollbackWithTestData {
     for {
@@ -83,7 +86,8 @@ class Exercise6Test extends WorkshopTest {
 
   val nameFromFuture = Future.successful("Ocicat")
 
-  def findBreed(name: Future[String]): DBIO[Option[Breed]] = ???
+  def findBreed(name: Future[String]): DBIO[Option[Breed]] =
+    DBIO.from(name).flatMap(breedsRepository.findByName)
 
   "findBreed" should "find breed for name from future" in rollbackWithTestData {
     for {
