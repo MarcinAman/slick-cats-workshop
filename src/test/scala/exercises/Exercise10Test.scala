@@ -6,7 +6,7 @@ import cats.implicits._
 import cats.mtl.implicits._
 import instances.DbioInstances._
 import model.domain.{Breed, CatFoodShop, PriceList}
-import model.infra.CatFoodPrices
+import model.infra.{Breeds, CatFoodPrices, CatFoodShops, Cats}
 import services.WeatherService.Forecast
 import services.{ShoppingScheduleService, WeatherService}
 import slick.dbio.DBIO
@@ -14,6 +14,7 @@ import slick.jdbc.H2Profile.api._
 import util.WorkshopTest
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 class Exercise10Test extends WorkshopTest {
   import module._
@@ -37,8 +38,39 @@ class Exercise10Test extends WorkshopTest {
 
   val location = "Cystersów 20A"
 
+  def findAllPrices(shops: Seq[CatFoodShop]): DBIO[Seq[PriceList]] = shops.toList.traverse(s => catFoodShopsRepository.getPriceList(s.id.get))
+
+  def daysWithGoodWeather(sh: CatFoodShop): DBIO[List[DayOfWeek]] = {
+    val x: DBIO[List[(DayOfWeek, WeatherService.Forecast.Value)]] =
+      DBIO.from(weatherService
+      .weekDays
+      .traverse(s => for {
+        d <- Future.successful(s)
+        w <- weatherService.getWeatherOnRoute(s, location, sh.address)
+      } yield (d, w)))
+
+    x.map(s => s.filter{
+      case (_, WeatherService.Forecast.Good) => true
+      case _ => false
+    }.map(_._1))
+  }
+
   def getBestPossibleSchedule: DBIO[ShoppingScheduleService.Schedule] = {
-    ???
+    val x = (for {
+      s <- CatFoodShops.query
+    } yield s).result
+
+    x.flatMap(findAllPrices)
+      .map(cheapestFoodPickerService.pickCheapestFood)
+      .flatMap {
+        case (food, shop) => for {
+          cal <- Cats.query.join(Breeds.query).on(_.breedId === _.id).map(_._2.caloriesPerDay).sum.getOrElse(0 : BigDecimal).result
+          w <- daysWithGoodWeather(shop)
+        } yield {
+          val calReq = cal * 7 / food.caloriesPerGram
+          shoppingScheduleService.getSchedule(shop, food, calReq, w)
+        }
+    }
   }
 
   "getBestPossibleSchedule" should "compose best possible schedule" in rollbackWithTestData {

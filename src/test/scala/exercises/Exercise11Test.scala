@@ -8,7 +8,7 @@ import instances.DbioInstances._
 import services.ShoppingScheduleService
 import services.ShoppingScheduleService.Schedule.Entry
 import services.ShoppingScheduleValidator.Stars
-import slick.dbio.DBIO
+import slick.dbio.{DBIO, DBIOAction, Effect, NoStream}
 import util.WorkshopTest
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -30,12 +30,33 @@ class Exercise11Test extends WorkshopTest {
     * https://bartosz822.github.io/slick-cats-workshop-presentation/#/10/19
     */
 
+  def basicValidations(schedule: ShoppingScheduleService.Schedule): Either[List[String], Stars] =
+    shoppingScheduleValidator.checkFrequency(schedule) combine
+      shoppingScheduleValidator.checkOverload(schedule) combine
+      shoppingScheduleValidator.checkShoppingOnSunday(schedule)
+
   def validateSchedule(schedule: ShoppingScheduleService.Schedule): EitherT[DBIO, List[String], Stars] = {
-    ???
+    val dbValidations: DBIO[Either[List[String], Stars]] = for {
+      canBuyFoodAtShop <- shoppingScheduleValidator.canBuyFoodAtShop(schedule)
+      isPriceLowEnough <- shoppingScheduleValidator.isPriceLowEnough(schedule)
+    } yield canBuyFoodAtShop combine isPriceLowEnough combine basicValidations(schedule)
+
+    EitherT(dbValidations)
   }
 
   def validateScheduleCollect(schedule: ShoppingScheduleService.Schedule): DBIO[Validated[List[String], Stars]] = {
-    ???
+    val basic = shoppingScheduleValidator.checkFrequency(schedule).toValidated combine
+      shoppingScheduleValidator.checkOverload(schedule).toValidated combine
+      shoppingScheduleValidator.checkShoppingOnSunday(schedule).toValidated
+
+    val dbValidations: DBIO[Validated[List[String], Stars]] = for {
+      canBuyFoodAtShop <- shoppingScheduleValidator.canBuyFoodAtShop(schedule)
+      isPriceLowEnough <- shoppingScheduleValidator.isPriceLowEnough(schedule)
+    } yield {
+      canBuyFoodAtShop.toValidated combine isPriceLowEnough.toValidated combine basic
+    }
+
+    dbValidations
   }
 
   "validate schedule" should "recognize valid schedule" in fixture { c =>
