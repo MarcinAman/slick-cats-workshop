@@ -31,7 +31,13 @@ class Exercise7Test extends WorkshopTest {
     *
     */
 
-  def prepareGetBreedForCat(cats: List[Cat]): DBIO[Long => Breed] = ???
+  def prepareGetBreedForCat(cats: List[Cat]): DBIO[Long => Breed] = {
+    cats.map(c => (c.id, c.breedId)).traverse[DBIO, (Long, Breed)] {
+      case (id, b) => for {
+        c <- breedsRepository.findExistingById(b)
+      } yield (id.get, c)
+    }.map(_.toMap)
+  }
 
   it should "correctly verify diets for cats" in fixture { c =>
     import c._

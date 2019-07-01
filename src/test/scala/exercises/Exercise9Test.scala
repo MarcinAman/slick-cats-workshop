@@ -3,7 +3,7 @@ package exercises
 import cats.data.EitherT
 import instances.DbioInstances.dbioMonad
 import model.domain.Cat
-import slick.dbio.DBIO
+import slick.dbio.{DBIO, DBIOAction, Effect, NoStream}
 import util.WorkshopTest
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -34,7 +34,10 @@ class Exercise9Test extends WorkshopTest {
     }
   }
 
-  def matchCat(cat: DBIO[Cat]): EitherT[DBIO, OldCat, YoungCat] = ???
+  def matchCat(cat: DBIO[Cat]): EitherT[DBIO, OldCat, YoungCat] = {
+    val x: DBIO[Either[OldCat, YoungCat]] = cat.map(matchCat)
+    EitherT(x)
+  }
 
 
   "matching multiple cats" should "return left if one of cats is old" in fixture { c =>
